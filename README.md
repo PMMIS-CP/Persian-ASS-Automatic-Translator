@@ -1,122 +1,131 @@
-# Subtitle Dialogue Processing and Persian RTL Fixer CLI Tool
+# Subtitle Manipulation Command Line Tool
 
-This project provides a simple, command-line interface (CLI) tool for handling subtitle files, specifically focusing on extracting dialogues from **SRT** and **ASS/SSA** formats, and crucially, replacing dialogues in ASS files with Persian translations while applying a necessary **Right-to-Left (RTL) punctuation fix** for proper display.
+## 🎯 Project Goal
 
-The tool is designed to assist subtitlers who need to translate content and address common display issues with Persian script in video players.
+The primary goal of this project is to provide a robust and versatile command-line interface (CLI) tool for handling common tasks related to subtitle files, specifically focusing on **ASS/SSA**, **SRT**, and plain **TXT** formats. It is especially useful for Persian (RTL) localization, translation workflows, and dialogue preparation.
 
-## 🚀 Features
+## ✨ Core Capabilities
 
-* **Extract Dialogues (ASS/SRT):** Easily extract all dialogue texts from a given `.ass` or `.srt` file into a clean, line-by-line `.txt` file for translation.
-* **Replace Dialogues (ASS):** Replace the original dialogue text in an `.ass` file with translated text from a `.txt` file, while **preserving all ASS formatting tags** and timing information (crucial for styles, positioning, and effects).
-* **Persian RTL Punctuation Fix:** A dedicated command to correct the common LTR display issue in Persian text where ending punctuation (e.g., `!`, `.` , `،` , `...`) appears on the left side of the sentence instead of the right. It moves these marks to the start of the line (e.g., `متن!` becomes `!متن`).
+The tool is built around a simple CLI (`cli_tool.py`) that offers several key functionalities:
 
-## 🛠️ Requirements
+1.  **Dialogue Extraction:** Extracting clean dialogue text from ASS or SRT files and saving it to a plain TXT file.
+    * **Features:** Optional sequential prefixing (`1-`, `2-`, ...) for easy line tracking during translation.
+2.  **Dialogue Replacement (ASS):** Replacing the original dialogue text in an ASS file with a translated one (e.g., Persian from a TXT file), while preserving all original timing and styling information.
+3.  **Prefix Removal:** Removing the sequential prefixes (`1-`, `2-`, `...`) from a TXT file, which is useful after the translation is done.
+4.  **Right-to-Left (RTL) Fixer:** Applying the **Right-to-Left Embedding (RLE - `\u202b`)** Unicode character to correctly display Persian and other RTL languages in various environments.
+    * **Supported Files:** TXT, SRT, and ASS files.
+    * **Logic:**
+        * **TXT:** Adds RLE to the beginning of every line.
+        * **SRT:** Adds RLE to the beginning of every dialogue line, skipping timestamps and sequence numbers.
+        * **ASS:** Intelligently adds RLE after any styling codes (`{\an5}`, `{\i1}`) and after every line break (`\N`).
 
-The project is written in standard Python and has no external dependencies beyond the built-in modules (`os`, `re`, `cmd`, `shlex`).
+## 🛠️ Usage Instructions
 
-* **Python 3.x**
+The tool operates via a command-line interface. To start, navigate to the directory containing `cli_tool.py` and run it:
 
-## 📦 How to Run
+```bash
+python cli_tool.py
+````
 
-1.  Save all Python files (`cli_tool.py`, `ass_parser.py`, `srt_parser.py`, `ass_replacer.py`, `rtl_fixer.py`) in the same directory.
-2.  Open your terminal or command prompt.
-3.  Navigate to the project directory.
-4.  Run the CLI tool using Python:
+This will launch the `SubToolCLI>` prompt.
 
-    ```bash
-    python cli_tool.py
-    ```
+### 1\. Dialogue Extraction
 
-    You will be greeted by the `SubToolCLI>` prompt.
-
-## ✍️ Commands Reference
-
-All file paths containing spaces **MUST** be enclosed in double quotes (`"`).
-
-### 1. Extract Dialogues
-
-Extracts dialogue text and saves it to a new file named `[original_filename]_extracted.txt`.
-
-| Command | Description | Example Usage |
-| :--- | :--- | :--- |
-| `extract_ass` | Extracts dialogues from an ASS/SSA file. | `extract_ass "C:/Subtitles/Movie.ass"` |
-| `extract_srt` | Extracts dialogues from an SRT file. | `extract_srt "./data/Episode 1.srt"` |
-
-### 2. Fix RTL Punctuation
-
-Applies the RTL punctuation correction to a Persian `.txt` file and saves the output to `[original_filename]_RTL.txt`. This step is highly recommended **after** the translation is complete and **before** replacing the dialogues.
-
-| Command | Description | Example Usage |
-| :--- | :--- | :--- |
-| `RTL` | Moves trailing punctuation to the start of the line for RTL correction. | `RTL "C:/Translations/Translated.txt"` |
-
-### 3. Replace ASS Dialogues
-
-Replaces the dialogue text in an original ASS file with the content of the translation file. It saves the output to a new file named `[original_filename]_Persian.ass`.
-
-**IMPORTANT:** The number of lines in the translation TXT file must match the number of dialogue lines in the original ASS file for a successful replacement.
-
-| Command | Description | Example Usage |
-| :--- | :--- | :--- |
-| `replace_ass` | Replaces the English text in the ASS file with the translated Persian text. | `replace_ass "C:/Translations/Translated_RTL.txt" "C:/Subtitles/Original.ass"` |
-
-### 4. Exit
+Extracts dialogues from subtitle files into a clean `.txt` file.
 
 | Command | Description |
 | :--- | :--- |
-| `exit` | Exits the CLI tool. |
+| `extract_ass` | Extracts dialogue from an ASS/SSA file. |
+| `extract_srt` | Extracts dialogue from an SRT file. |
 
-## 💡 Recommended Workflow
+**Syntax:**
 
-The intended process for localizing a subtitle file from English (or any LTR language) to Persian is:
+```bash
+# Basic Extraction (no prefix)
+extract_ass "C:/Path/to/my_subtitle.ass" N
 
-1.  **Extract:**
+# Extraction with sequential line prefixes (e.g., '1-', '2-', ...)
+extract_srt "/path/to/another_file.srt" Y
+```
+
+### 2\. Dialogue Replacement (ASS)
+
+Replaces the dialogue text in an original ASS file with translations from a TXT file.
+
+**Syntax:**
+
+```bash
+replace_ass "<path/to/translations.txt>" "<path/to/original.ass>"
+# Example:
+# replace_ass "C:/project/extracted_translated.txt" "C:/project/original_movie.ass"
+```
+
+### 3\. RTL Fixer
+
+Applies the RLE character to fix rendering issues for RTL languages (like Persian) in various file types.
+
+**Syntax:**
+
+```bash
+# Fix a plain TXT file:
+RTL "/path/to/persian_translation.txt" N
+
+# Fix an SRT file (the N/Y flag is currently only a placeholder in the implementation):
+RTL "C:/path/to/fixed_sub.srt"
+```
+
+**Note:** The `rtl_fixer.py` function `process_rtl_file` currently only implements the RLE fix for text display direction. The optional word reversal flag (`Y/N`) is present in the CLI but its corresponding logic for word-order reversal is not yet implemented in the core function.
+
+### 4\. Prefix Remover
+
+Removes the sequential line prefixes (e.g., `1-`, `10-`) that were added during the extraction phase.
+
+**Syntax:**
+
+```bash
+remove_prefix "/path/to/your_file_with_prefixes.txt"
+# This will create a new file named: your_file_with_prefixes_no_prefix.txt
+```
+
+### General Commands
+
+| Command | Description |
+| :--- | :--- |
+| `help` or `?` | Lists all available commands. |
+| `exit` | Closes the CLI. |
+
+-----
+
+## ⚙️ Example Workflow (Persian Translation)
+
+1.  **Extract English Dialogues:** Extract the original dialogues from your ASS file and add prefixes.
+
+    ```bash
+    SubToolCLI> extract_ass "original_en.ass" Y
+    # Output: original_en_extracted.txt (e.g., 1-Hello, 2-How are you?)
     ```
-    SubToolCLI> extract_ass "original_en.ass" 
-    # Creates original_en_extracted.txt
+
+2.  **Translate:** Take the `original_en_extracted.txt` file, translate the content (leaving the prefixes), and save it as `persian_translated.txt`.
+
+3.  **Fix RTL (Optional but Recommended):** Apply the RLE character to your translated text file to ensure correct display.
+
+    ```bash
+    SubToolCLI> RTL "persian_translated.txt" N
+    # Output: persian_translated_RLE_fixed.txt
     ```
 
-2.  **Translate:**
-    * Manually translate the lines in `original_en_extracted.txt` to Persian. (Save the result as `translated_fa.txt`).
+4.  **Remove Prefixes:** Remove the sequential prefixes from the *RLE-fixed* file.
 
-3.  **Fix RTL:**
-    ```
-    SubToolCLI> RTL "translated_fa.txt"
-    # Creates translated_fa_RTL.txt (ready for replacement)
+    ```bash
+    SubToolCLI> remove_prefix "persian_translated_RLE_fixed.txt"
+    # Output: persian_translated_RLE_fixed_no_prefix.txt (Ready for replacement)
     ```
 
-4.  **Replace:**
+5.  **Replace Dialogues:** Inject the clean, RLE-fixed Persian dialogues back into the original ASS file.
+
+    ```bash
+    SubToolCLI> replace_ass "persian_translated_RLE_fixed_no_prefix.txt" "original_en.ass"
+    # Output: original_en_Persian.ass (The final file with Persian subtitles)
     ```
-    SubToolCLI> replace_ass "translated_fa_RTL.txt" "original_en.ass"
-    # Creates original_en_Persian.ass (final, formatted file)
-    ```
 
-## 📝 Code Overview
-
-### `cli_tool.py`
-
-* The main entry point using Python's `cmd` module.
-* Handles command parsing, argument validation using `shlex` (to support paths with spaces), and delegates logic to specific handler functions.
-
-### `ass_parser.py`
-
-* Contains `extract_dialogue_text_from_ass()`.
-* Uses `line.split(',', 9)` to reliably isolate the 10th field (dialogue text) in a `Dialogue:` line.
-* Uses `re.sub(r'\{[^}]*\}', '', raw_text)` to strip all ASS format/tag information (`{\...}`).
-
-### `srt_parser.py`
-
-* Contains `extract_dialogue_text_from_srt()`.
-* Parses SRT blocks by ignoring block numbers and timestamp lines (`-->`) and capturing the subsequent line(s) as dialogue text.
-
-### `rtl_fixer.py`
-
-* Contains `fix_rtl_punctuation()` and `process_rtl_file()`.
-* Crucially, it replaces all English commas (`,`) with Persian commas ( `،` ) before fixing.
-* The main function `fix_rtl_punctuation()` identifies trailing punctuation (`.`, `...`, `،`, `!`) and moves it to the start of the line to solve the LTR rendering issue in media players.
-
-### `ass_replacer.py`
-
-* Contains `replace_ass_dialogues()`.
-* Reads the translations and iterates through the original ASS file.
-* For each `Dialogue:` line, it extracts the original ASS formatting tags (`re.findall(r'\{[^}]*\}', english_text)`) and prepends them to the new Persian text before writing the new line, ensuring **perfect style preservation**.
+<!-- end list -->
