@@ -33,48 +33,48 @@ def replace_ass_dialogues(ass_file_path, translation_file_path):
     try:
         with open(ass_file_path, 'r', encoding='utf-8') as f:
             for line in f:
-                line = line.strip('\n') # Keep line breaks for output consistency
+                line = line.strip('\n') # Preserve line breaks for output consistency
                 
                 if line.startswith('Dialogue:'):
                     dialogue_counter += 1
                     
-                    # خط را به 10 بخش تقسیم می‌کند (متن دیالوگ در ایندکس 9 است)
+                    # Split the line into 10 parts (the dialogue text is at index 9)
                     parts = line.split(',', 9)
                     
                     if len(parts) == 10:
-                        # بخش اطلاعات دیالوگ (قبل از متن)
+                        # Dialogue information section (before the text content)
                         dialogue_info = parts[0:9]
                         
-                        # متن اصلی (انگلیسی)
+                        # The original (English) text content
                         english_text = parts[9].strip()
                         
-                        # تگ‌های فرمت‌دهی ASS را از متن اصلی جدا می‌کنیم
-                        # (مثلا {\an5} یا تگ‌های رنگ) تا در متن ترجمه جدید قرار داده شوند.
-                        # این کار تضمین می‌کند که فرمت‌دهی حفظ شود.
+                        # Extract ASS formatting tags from the original text
+                        # (e.g., {\an5} or color tags) to be placed in the new translated text.
+                        # This ensures that styling is preserved.
                         format_tags = re.findall(r'\{[^}]*\}', english_text)
                         
                         
                         if translation_index < len(translations):
                             persian_text = translations[translation_index]
                             
-                            # اضافه کردن تگ‌ها به ابتدای متن فارسی جدید
-                            # این فرض می‌کند که تگ‌ها باید در ابتدای متن باقی بمانند.
+                            # Add the extracted tags to the beginning of the new Persian text
+                            # This assumes the tags should remain at the start of the text.
                             new_text = "".join(format_tags) + persian_text
                             
-                            # ساختار دهی مجدد خط دیالوگ جدید
+                            # Reconstruct the new dialogue line
                             new_line = ",".join(dialogue_info) + "," + new_text
                             output_lines.append(new_line)
                             
                             translation_index += 1
                         else:
-                            # اگر تعداد ترجمه‌ها کمتر از دیالوگ‌ها باشد، خط اصلی را حفظ می‌کنیم.
+                            # If the number of translations is less than the dialogues, keep the original line.
                             output_lines.append(line)
                             print(f"Warning: Missing translation for dialogue line {dialogue_counter}. Keeping original text.")
                     else:
-                        # اگر خط دیالوگ ساختار استاندارد را نداشت، آن را بدون تغییر حفظ می‌کنیم.
+                        # If the dialogue line does not have the standard structure, keep it unchanged.
                         output_lines.append(line)
                 else:
-                    # خطوط غیر دیالوگ (مانند [Script Info], [V4+ Styles] و ...) را حفظ می‌کنیم.
+                    # Preserve non-dialogue lines (e.g., [Script Info], [V4+ Styles], etc.).
                     output_lines.append(line)
         
         if translation_index < len(translations):

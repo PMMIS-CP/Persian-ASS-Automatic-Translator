@@ -1,14 +1,13 @@
-# cli_tool.py (FINAL ROBUST VERSION with RTL FIXER + Prefix Option + Prefix Remover)
+# cli_tool.py (FINAL ROBUST VERSION with RTL FIXER + Prefix Option + Prefix Remover + OPTIONAL WORD RTL)
 
 import cmd
 import os
 import shlex 
-# Import all required modules
 from ass_parser import extract_dialogue_text_from_ass
 from srt_parser import extract_dialogue_text_from_srt
 from ass_replacer import replace_ass_dialogues
 from rtl_fixer import process_rtl_file 
-from prefix_remover import remove_line_prefixes # <--- NEW IMPORT
+from prefix_remover import remove_line_prefixes 
 
 class SubtitleToolShell(cmd.Cmd):
     
@@ -47,27 +46,28 @@ class SubtitleToolShell(cmd.Cmd):
         """
         self._parse_and_call(line, 2, 'ass_replace', replace_ass_dialogues, self._replace_ass_handler)
         
-    # --- Command 4: RTL Fixer (NEW COMMAND) ---
+    # --- Command 4: RTL Fixer (MODIFIED COMMAND) ---
     def do_RTL(self, line): 
         """
-        Fixes RTL display issues in a Persian TXT file by moving ending punctuation
-        (., ..., ,, ;, !) to the start of the line. Saves output to a new file.
+        Fixes RTL display issues in a Persian TXT file by moving ending punctuation 
+        (., ..., ,, !, :) to the start. Optionally, reverses the word order.
         
-        Usage: RTL "/path/to/your_extracted.txt"
+        Usage: RTL "/path/to/your_extracted.txt" [Y/N for word RTL]
+        (Y/N is optional. Use 'Y' to enable word order reversal, default is N)
         """
-        self._parse_and_call(line, 1, 'rtl_fix', process_rtl_file, self._rtl_handler)
+        # Expected args is now 1 or 2
+        self._parse_and_call(line, (1, 2), 'rtl_fix', process_rtl_file, self._rtl_handler)
 
-    # --- Command 5: Prefix Remover (NEW COMMAND) ---
+    # --- Command 5: Prefix Remover ---
     def do_remove_prefix(self, line): 
         """
         Removes sequential prefixes (e.g., '1-', '2-', ...) from the start of a TXT file's lines.
         
         Usage: remove_prefix "/path/to/your_file_with_prefixes.txt"
         """
-        # New command added, using the new handler logic
-        self._parse_and_call(line, 1, 'prefix_remove', remove_line_prefixes, self._prefix_remover_handler) # <--- NEW COMMAND
+        self._parse_and_call(line, 1, 'prefix_remove', remove_line_prefixes, self._prefix_remover_handler)
 
-    # --- Handler for replace_ass logic ---
+    # --- Handler for replace_ass logic (No change) ---
     def _replace_ass_handler(self, args, file_type, extraction_function, add_prefix=False):
         """Handles the specific logic for the replace_ass command."""
         translation_file_path = args[0]
@@ -84,14 +84,21 @@ class SubtitleToolShell(cmd.Cmd):
             print("\n✅ Translation replacement successful!")
             print(f"   New Persian ASS file created at: {result}")
 
-    # --- Handler for RTL Fixer Logic ---
+    # --- Handler for RTL Fixer Logic (MODIFIED HANDLER) ---
     def _rtl_handler(self, args, file_type, processing_function, add_prefix=False):
         """Handles the specific logic for the RTL command."""
         full_path = args[0]
         
-        print(f"Starting RTL correction on file: {full_path}...")
+        # Check for the optional second argument passed by _parse_and_call
+        fix_words_flag = False
+        if len(args) == 2 and args[1].upper() == 'Y':
+            fix_words_flag = True
+            
+        print(f"Starting RTL correction on file: {full_path}")
+        print(f"Word RTL Reversal enabled: {'Yes' if fix_words_flag else 'No'}")
         
-        result_path = processing_function(full_path) 
+        # Pass the new flag to the processing function (rtl_fixer.process_rtl_file)
+        result_path = processing_function(full_path, fix_words_flag=fix_words_flag) 
         
         if result_path.startswith("ERROR"):
             print(f"\n❌ Operation Failed: {result_path}")
@@ -99,14 +106,13 @@ class SubtitleToolShell(cmd.Cmd):
             print("\n✅ RTL Correction successful!")
             print(f"   New RTL-Fixed file created at: {result_path}")
 
-    # --- Handler for Prefix Remover Logic ---
-    def _prefix_remover_handler(self, args, file_type, processing_function, add_prefix=False): # <--- NEW HANDLER
+    # --- Handler for Prefix Remover Logic (No change) ---
+    def _prefix_remover_handler(self, args, file_type, processing_function, add_prefix=False): 
         """Handles the specific logic for the remove_prefix command."""
         full_path = args[0]
         
         print(f"Starting prefix removal on file: {full_path}...")
         
-        # processing_function here is remove_line_prefixes
         result_path = processing_function(full_path) 
         
         if result_path.startswith("ERROR"):
@@ -115,7 +121,7 @@ class SubtitleToolShell(cmd.Cmd):
             print("\n✅ Prefix removal successful!")
             print(f"   New file without prefixes created at: {result_path}")
 
-    # --- Centralized Argument Parsing (No change needed here for this request) ---
+    # --- Centralized Argument Parsing (MODIFIED FOR RTL) ---
     def _parse_and_call(self, line, expected_args, file_type, extraction_function, handler_function):
         """
         Parses the command line using shlex and validates the number of arguments.
@@ -140,10 +146,10 @@ class SubtitleToolShell(cmd.Cmd):
             if file_type in ('ass', 'srt'):
                 print(f"Usage: extract_{file_type} \"/path/to/file.{file_type}\" [add_prefix_Y/N]")
             elif file_type == 'rtl_fix':
-                print("Usage: RTL \"/path/to/file.txt\"")
+                print("Usage: RTL \"/path/to/file.txt\" [Y/N for word RTL]")
             elif file_type == 'ass_replace':
                 print("Usage: replace_ass \"<path/to/translations.txt>\" \"<path/to/original.ass>\"")
-            elif file_type == 'prefix_remove': # <--- New Usage Tip
+            elif file_type == 'prefix_remove': 
                 print("Usage: remove_prefix \"/path/to/file.txt\"")
             return
         
@@ -159,10 +165,15 @@ class SubtitleToolShell(cmd.Cmd):
                 print("ERROR: Optional argument must be 'Y' or 'N' for prefix feature.")
                 return
 
+        if file_type == 'rtl_fix' and num_args == 2:
+            rtl_word_arg = args[1].upper()
+            if rtl_word_arg not in ('Y', 'N'):
+                print("ERROR: Optional argument for word RTL must be 'Y' or 'N'.")
+                return
         handler_function(args, file_type, extraction_function, add_prefix)
 
 
-    # --- Helper Method to handle common logic for extraction (No change needed here for this request) ---
+    # --- Helper Method to handle common logic for extraction (No change) ---
     def _process_file(self, args, file_type, extraction_function, add_prefix=False):
         """
         A general method to handle file processing and saving output for extract_ass/srt.
