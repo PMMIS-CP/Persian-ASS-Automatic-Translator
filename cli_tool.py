@@ -220,7 +220,7 @@ class SubtitleToolShell(cmd.Cmd):
         
         تنظیمات پرامپت از فایل 'translation_config.json' خوانده می‌شود.
         """
-        CONFIG_FILE = "translation_config.json" # <--- نام ثابت فایل تنظیمات
+        CONFIG_FILE = "translation_config.json"
         
         try:
             args = shlex.split(line)
@@ -239,7 +239,6 @@ class SubtitleToolShell(cmd.Cmd):
             print(f"ERROR: ASS file not found at {ass_file_path}")
             return
             
-        # --- ۱. خواندن تنظیمات پرامپت از فایل JSON ---
         print("\n--- 1. Reading Translation Configuration ---")
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -264,10 +263,8 @@ class SubtitleToolShell(cmd.Cmd):
             print(f"ERROR reading configuration file: {e}")
             return
         
-        # --- ۲. استخراج متن با پیشوند (توسط ass_parser.py) ---
         print("\n--- 2. Extraction with Prefix (Using ass_parser) ---")
         extracted_texts_with_prefix = extract_dialogue_text_from_ass(ass_file_path, add_prefix=True)
-        # ... (بقیه منطق استخراج و بررسی خطا)
         
         if not extracted_texts_with_prefix or extracted_texts_with_prefix[0].startswith("ERROR"):
             print(f"Extraction Error: {extracted_texts_with_prefix[0] if extracted_texts_with_prefix else 'No dialogue lines found.'}")
@@ -277,15 +274,13 @@ class SubtitleToolShell(cmd.Cmd):
         input_text_for_ai = "\n".join(extracted_texts_with_prefix)
         print(f"✅ Extracted {original_line_count} dialogue lines with prefixes.")
         
-        # --- ۳. ارسال به Gemini AI برای ترجمه ---
         print("\n--- 3. Sending to Gemini AI or OpenAI AI for Translation ---")
 
         translated_lines_with_prefix = translate_text_openai(
-            gemini_api_key, # نام متغیر آرگومان را gemini_api_key نگه می‌داریم، اما کلید OpenAI را ارسال می‌کنیم
+            gemini_api_key,
             input_text_for_ai, 
             prompt_data
         )
-        # ***********************************
         
         if translated_lines_with_prefix and translated_lines_with_prefix[0].startswith("ERROR"):
             print(f"AI Translation Error: {translated_lines_with_prefix[0]}")
@@ -293,7 +288,6 @@ class SubtitleToolShell(cmd.Cmd):
             
         translated_line_count = len(translated_lines_with_prefix)
 
-        # ارسال دیکشنری تنظیمات به جای رشته JSON خام
         translated_lines_with_prefix = translate_text(gemini_api_key, input_text_for_ai, prompt_data)
         
         if translated_lines_with_prefix and translated_lines_with_prefix[0].startswith("ERROR"):
@@ -302,7 +296,6 @@ class SubtitleToolShell(cmd.Cmd):
             
         translated_line_count = len(translated_lines_with_prefix)
 
-        # --- ۴. بررسی تطابق تعداد خطوط و هشدار (Critical Step) ---
         if translated_line_count != original_line_count:
             print(f"\n❌ WARNING: Line count mismatch!")
             print(f"   Original lines expected: {original_line_count}")
@@ -318,7 +311,6 @@ class SubtitleToolShell(cmd.Cmd):
 
         print(f"✅ AI Translation successful. Line count verified: {translated_line_count} lines match original.")
         
-        # --- ۵. ذخیره خروجی خام ترجمه (با پیشوند) برای ورودی مرحله بعد ---
         base_name, _ = os.path.splitext(ass_file_path)
         ai_output_txt_path = base_name + "_AI_translated_raw.txt"
         
@@ -330,7 +322,6 @@ class SubtitleToolShell(cmd.Cmd):
             print(f"ERROR saving AI raw output file: {e}")
             return
             
-        # --- ۶. حذف پیشوندهای ترتیبی (توسط prefix_remover.py) ---
         print("\n--- 6. Removing Sequential Prefixes (Using prefix_remover) ---")
         no_prefix_path = remove_line_prefixes(ai_output_txt_path)
         
@@ -339,7 +330,6 @@ class SubtitleToolShell(cmd.Cmd):
             return
         print(f"✅ Prefixes removed. Output saved to: {no_prefix_path}")
 
-        # --- ۷. اعمال فیکس RTL (توسط rtl_fixer.py) ---
         print("\n--- 7. Applying RTL (Right-to-Left) Fixes (Using rtl_fixer) ---")
         rtl_fixed_path = process_rtl_file(no_prefix_path, fix_words_flag=False)
         
@@ -348,7 +338,6 @@ class SubtitleToolShell(cmd.Cmd):
             return
         print(f"✅ RTL fix applied. Output saved to: {rtl_fixed_path}")
 
-        # --- ۸. جایگذاری دیالوگ‌ها در فایل ASS اصلی (توسط ass_replacer.py) ---
         print("\n--- 8. Replacing Dialogues in Original ASS File (Using ass_replacer) ---")
         final_ass_path = replace_ass_dialogues(ass_file_path, rtl_fixed_path)
 
