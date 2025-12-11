@@ -2,12 +2,15 @@
 
 import cmd
 import os
-import shlex 
+import shlex
+import json
 from ass_parser import extract_dialogue_text_from_ass
 from srt_parser import extract_dialogue_text_from_srt
 from ass_replacer import replace_ass_dialogues
 from rtl_fixer import process_rtl_file 
-from prefix_remover import remove_line_prefixes 
+from prefix_remover import remove_line_prefixes
+from gemini_api import translate_text
+from openai_api import translate_text_openai
 
 class SubtitleToolShell(cmd.Cmd):
     
@@ -207,6 +210,157 @@ class SubtitleToolShell(cmd.Cmd):
             
         else:
             print(texts[0])
+
+    # --- Command: Full ASS Translation Pipeline ---
+    def do_translate_ass(self, line):
+        """
+        کل فرآیند ترجمه زیرنویس ASS را با استفاده از API جمنای و تنظیمات داخلی انجام می‌دهد.
+        
+        استفاده: translate_ass "<ass_file_path>" "<gemini_api_key>"
+        
+        تنظیمات پرامپت از فایل 'translation_config.json' خوانده می‌شود.
+        """
+        CONFIG_FILE = "translation_config.json" # <--- نام ثابت فایل تنظیمات
+        
+        try:
+            args = shlex.split(line)
+        except ValueError:
+            print("ERROR: Could not parse arguments. Ensure all paths are correctly quoted.")
+            return
+
+        if len(args) != 2:
+            print("ERROR: Incorrect number of arguments.")
+            print("Usage: translate_ass \"<ass_file_path>\" \"<gemini_api_key>\"")
+            return
+            
+        ass_file_path, gemini_api_key = args
+        
+        if not os.path.exists(ass_file_path):
+            print(f"ERROR: ASS file not found at {ass_file_path}")
+            return
+            
+        # --- ۱. خواندن تنظیمات پرامپت از فایل JSON ---
+        print("\n--- 1. Reading Translation Configuration ---")
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+            
+            prompt_data = config_data.get("prompt_settings", {})
+            if not prompt_data:
+                print(f"ERROR: 'prompt_settings' not found in {CONFIG_FILE}.")
+                return
+                
+            print(f"✅ Configuration loaded successfully from {CONFIG_FILE}.")
+            print(f"   Target Language: {prompt_data.get('target_lang', 'N/A')}")
+            print(f"   Translation Tone: {prompt_data.get('tone', 'N/A')}")
+            
+        except FileNotFoundError:
+            print(f"FATAL ERROR: Configuration file '{CONFIG_FILE}' not found. Please create it.")
+            return
+        except json.JSONDecodeError:
+            print(f"FATAL ERROR: Invalid JSON format in '{CONFIG_FILE}'. Check the file structure.")
+            return
+        except Exception as e:
+            print(f"ERROR reading configuration file: {e}")
+            return
+        
+        # --- ۲. استخراج متن با پیشوند (توسط ass_parser.py) ---
+        print("\n--- 2. Extraction with Prefix (Using ass_parser) ---")
+        extracted_texts_with_prefix = extract_dialogue_text_from_ass(ass_file_path, add_prefix=True)
+        # ... (بقیه منطق استخراج و بررسی خطا)
+        
+        if not extracted_texts_with_prefix or extracted_texts_with_prefix[0].startswith("ERROR"):
+            print(f"Extraction Error: {extracted_texts_with_prefix[0] if extracted_texts_with_prefix else 'No dialogue lines found.'}")
+            return
+            
+        original_line_count = len(extracted_texts_with_prefix)
+        input_text_for_ai = "\n".join(extracted_texts_with_prefix)
+        print(f"✅ Extracted {original_line_count} dialogue lines with prefixes.")
+        
+        # --- ۳. ارسال به Gemini AI برای ترجمه ---
+        print("\n--- 3. Sending to Gemini AI or OpenAI AI for Translation ---")
+
+        translated_lines_with_prefix = translate_text_openai(
+            gemini_api_key, # نام متغیر آرگومان را gemini_api_key نگه می‌داریم، اما کلید OpenAI را ارسال می‌کنیم
+            input_text_for_ai, 
+            prompt_data
+        )
+        # ***********************************
+        
+        if translated_lines_with_prefix and translated_lines_with_prefix[0].startswith("ERROR"):
+            print(f"AI Translation Error: {translated_lines_with_prefix[0]}")
+            return
+            
+        translated_line_count = len(translated_lines_with_prefix)
+
+        # ارسال دیکشنری تنظیمات به جای رشته JSON خام
+        translated_lines_with_prefix = translate_text(gemini_api_key, input_text_for_ai, prompt_data)
+        
+        if translated_lines_with_prefix and translated_lines_with_prefix[0].startswith("ERROR"):
+            print(f"AI Translation Error: {translated_lines_with_prefix[0]}")
+            return
+            
+        translated_line_count = len(translated_lines_with_prefix)
+
+        # --- ۴. بررسی تطابق تعداد خطوط و هشدار (Critical Step) ---
+        if translated_line_count != original_line_count:
+            print(f"\n❌ WARNING: Line count mismatch!")
+            print(f"   Original lines expected: {original_line_count}")
+            print(f"   Translated lines received: {translated_line_count}")
+            
+            retry = input("Do you want to retry the AI operation? (Y/N): ").strip().upper()
+            if retry != 'Y':
+                print("Translation aborted by user due to line count mismatch.")
+                return
+            
+            print("Please adjust the prompt or check the input file and run the command again.")
+            return
+
+        print(f"✅ AI Translation successful. Line count verified: {translated_line_count} lines match original.")
+        
+        # --- ۵. ذخیره خروجی خام ترجمه (با پیشوند) برای ورودی مرحله بعد ---
+        base_name, _ = os.path.splitext(ass_file_path)
+        ai_output_txt_path = base_name + "_AI_translated_raw.txt"
+        
+        try:
+            with open(ai_output_txt_path, 'w', encoding='utf-8') as f:
+                f.write("\n".join(translated_lines_with_prefix))
+            print(f"   Raw translation (with prefixes) saved to: {ai_output_txt_path}")
+        except Exception as e:
+            print(f"ERROR saving AI raw output file: {e}")
+            return
+            
+        # --- ۶. حذف پیشوندهای ترتیبی (توسط prefix_remover.py) ---
+        print("\n--- 6. Removing Sequential Prefixes (Using prefix_remover) ---")
+        no_prefix_path = remove_line_prefixes(ai_output_txt_path)
+        
+        if no_prefix_path.startswith("ERROR"):
+            print(f"Prefix Remover Error: {no_prefix_path}")
+            return
+        print(f"✅ Prefixes removed. Output saved to: {no_prefix_path}")
+
+        # --- ۷. اعمال فیکس RTL (توسط rtl_fixer.py) ---
+        print("\n--- 7. Applying RTL (Right-to-Left) Fixes (Using rtl_fixer) ---")
+        rtl_fixed_path = process_rtl_file(no_prefix_path, fix_words_flag=False)
+        
+        if rtl_fixed_path.startswith("ERROR"):
+            print(f"RTL Fixer Error: {rtl_fixed_path}")
+            return
+        print(f"✅ RTL fix applied. Output saved to: {rtl_fixed_path}")
+
+        # --- ۸. جایگذاری دیالوگ‌ها در فایل ASS اصلی (توسط ass_replacer.py) ---
+        print("\n--- 8. Replacing Dialogues in Original ASS File (Using ass_replacer) ---")
+        final_ass_path = replace_ass_dialogues(ass_file_path, rtl_fixed_path)
+
+        if final_ass_path.startswith("ERROR"):
+            print(f"ASS Replacer Error: {final_ass_path}")
+            return
+
+        print("\n=======================================================")
+        print("🎉 Translation Pipeline Completed Successfully! 🎉")
+        print(f"Original ASS File: {ass_file_path}")
+        print(f"Final Translated ASS File: {final_ass_path}")
+        print("=======================================================")
 
 if __name__ == '__main__':
     SubtitleToolShell().cmdloop()

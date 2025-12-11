@@ -1,0 +1,8 @@
+{
+  "prompt_settings": {
+    "source_lang": "English",
+    "target_lang": "Persian",
+    "tone": "colloquial and professional, perfect for a movie subtitle",
+    "extra_instruction": "Ensure the translation is fluent and natural in Persian."
+  }
+}
